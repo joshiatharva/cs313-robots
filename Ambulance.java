@@ -1,21 +1,22 @@
 import lejos.nxt.*;
 import lejos.robotics.navigation.DifferentialPilot;
 
-public class RobotLabMotor {
+public class Ambulance {
 
   public static void main(String[] args) {
 
       DifferentialPilot pilot;
-      // First parameter defines wheel diameter in cm (May need to callibrate)
-      // Second parameter defines track width (tyre to tyre) in cm (May need to callibrate)
       pilot = new DifferentialPilot(2.25f, 5.5f, Motor.A, Motor.C);
       UltrasonicSensor sonar = new UltrasonicSensor(SensorPort.S3);
       sonar.continuous(); // Force the sensor's continuous mode
-      pilot.setTravelSpeed(5);
+      pilot.setTravelSpeed(10); // I am speeeeeed!!!!!
       int d1;
+      // Creates and starts the sounds thread
+      Thread t1 = new Thread(new Sounds());
+      t1.start();
 
       pilot.forward();
-      while (!Button.ESCAPE.isDown()) {
+      while (!Button.ESCAPE.isDown()) { // Exits when the escape button (bottom middle) is pressed
         d1 = sonar.getDistance();
         if (d1 < 20) {
             // Immediately (hopefully) stops the robot, reverses it, turns left and carries on
@@ -26,13 +27,18 @@ public class RobotLabMotor {
             continue;
         }
       }
-
-      // Angle offset at +15 degrees
-      // Hexagon: angle=75 degrees x6
-      // for(int i = 0; i<6 ; i++) {
-      //   pilot.travel(3);
-      //   pilot.rotate(75);
-      // }
-
   }//end class main
 }//end RobotLab1
+
+// Makes cool sounds
+class Sounds implements Runnable {
+  public void run(){
+    while(!Button.ESCAPE.isDown()){ // Exits when escape button pressed
+      // Queues the 2 sounds, once when the other sound finishes
+      while (Sound.getTime() > 0);
+      Sound.playTone(960, 500, 60);
+      while (Sound.getTime() > 0);
+      Sound.playTone(770, 500, 60);
+    }
+  }
+}
