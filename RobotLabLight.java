@@ -9,22 +9,20 @@ public class RobotLabLight {
       LightSensor lLight = new LightSensor(SensorPort.S4);
       DifferentialPilot pilot;
       // Need to callibrate first 2 args (wheel diameter and track width)
-      pilot = new DifferentialPilot(2.25f, 5.5f, Motor.A, Motor.C);
+      pilot = new DifferentialPilot(5.4f, 17.0f, Motor.A, Motor.C);
       boolean leftOnBlack;
       boolean rightOnBlack;
-      pilot.setTravelSpeed(5);
+      pilot.setTravelSpeed(10);
 
-      while (true) {
+      while (!Button.ESCAPE.isDown()) {
         leftOnBlack = lightOnBlack(lLight);
         rightOnBlack = lightOnBlack(rLight);
         if (!leftOnBlack && !rightOnBlack){  // Go forwards
           pilot.forward();
         } else if (leftOnBlack && !rightOnBlack){ // Turn left
-          pilot.stop();
-          pilot.rotate(20); // Try the steer method
+          pilot.steer(200); // Try the steer method
         } else if (!leftOnBlack && rightOnBlack) { // Turn right
-          pilot.stop();
-          pilot.rotate(-20);
+          pilot.steer(-200);
         } else{  // On junction
           pilot.stop();
           continue;

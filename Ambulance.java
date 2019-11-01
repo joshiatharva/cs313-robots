@@ -6,7 +6,7 @@ public class Ambulance {
   public static void main(String[] args) {
 
       DifferentialPilot pilot;
-      pilot = new DifferentialPilot(2.25f, 5.5f, Motor.A, Motor.C);
+      pilot = new DifferentialPilot(5.4f, 17.0f, Motor.A, Motor.C);
       UltrasonicSensor sonar = new UltrasonicSensor(SensorPort.S3);
       sonar.continuous(); // Force the sensor's continuous mode
       pilot.setTravelSpeed(10); // I am speeeeeed!!!!!
@@ -18,7 +18,7 @@ public class Ambulance {
       pilot.forward();
       while (!Button.ESCAPE.isDown()) { // Exits when the escape button (bottom middle) is pressed
         d1 = sonar.getDistance();
-        if (d1 < 20) {
+        if (d1 < 15) {
             // Immediately (hopefully) stops the robot, reverses it, turns left and carries on
             pilot.quickStop();
             pilot.travel(-5);
