@@ -9,7 +9,7 @@ public class Ambulance {
       pilot = new DifferentialPilot(5.4f, 17.0f, Motor.A, Motor.C);
       UltrasonicSensor sonar = new UltrasonicSensor(SensorPort.S3);
       sonar.continuous(); // Force the sensor's continuous mode
-      pilot.setTravelSpeed(10); // I am speeeeeed!!!!!
+      pilot.setTravelSpeed(20); // I am speeeeeed!!!!!
       int d1;
       // Creates and starts the sounds thread
       Thread t1 = new Thread(new Sounds());
