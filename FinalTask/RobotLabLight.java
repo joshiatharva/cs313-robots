@@ -1,5 +1,7 @@
 import lejos.nxt.*;
 import lejos.robotics.navigation.DifferentialPilot;
+import lejos.robotics.navigation.Navigator;
+import java.io.FileOutputStream;
 
 public class RobotLabLight {
   static int white = 60;
@@ -8,8 +10,11 @@ public class RobotLabLight {
       LightSensor rLight = new LightSensor(SensorPort.S1);
       LightSensor lLight = new LightSensor(SensorPort.S4);
       DifferentialPilot pilot;
+      Navigator nav;
+
       // Need to callibrate first 2 args (wheel diameter and track width)
       pilot = new DifferentialPilot(5.4f, 17.0f, Motor.A, Motor.C);
+      nav = new Navigator(pilot);
       boolean leftOnBlack;
       boolean rightOnBlack;
       pilot.setTravelSpeed(10);
@@ -27,13 +32,17 @@ public class RobotLabLight {
           pilot.stop();
           continue;
         }
+        // LCD.clear(0);
+        // LCD.drawInt(heading, 0, 0);
+        // LCD.refresh();
+        System.out.println(nav.getPoseProvider().getPose().getHeading());
       } //end while
 
     }//end class main
 
   public static boolean lightOnBlack(LightSensor sensor){
     int senseVal = sensor.getLightValue();
-    if (senseVal >= white - 5)
+    if (senseVal >= white - 10)
       return false;
     return true;
   }
