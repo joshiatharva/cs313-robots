@@ -5,6 +5,7 @@ public class Node extends exits.Exit {
   private int y;
   private boolean visited;
   public Exit exits[];
+  private final int error = 5;
 
   public Node () {
     visited = false;
@@ -28,4 +29,14 @@ public class Node extends exits.Exit {
     return this.visited;
   }
 
+  public boolean equals(Node M){
+    if (M.getX() >= this.x - error && M.getX() <= this.x + error)
+      if (M.getY() >= this.y - error && M.getY() <= this.y + error)
+        return true;
+    return false;
+  }
+
+  public String toString() {
+    return "("+ this.x + "," + this.y + ")";
+  }
 }
