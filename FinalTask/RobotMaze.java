@@ -2,20 +2,28 @@ import exits.*;
 import lejos.nxt.*;
 import lejos.robotics.navigation.*;
 import java.util.*;
+import java.io.*;
 
 public class RobotMaze {
+  // LeJos Hardware objects
   static LightSensor rLight;
   static LightSensor lLight;
   static DifferentialPilot pilot;
   static Navigator nav;
   static UltrasonicSensor sonar;
 
+  // Graph explore objects
   public static Node Start;
+  public static Node Goal;
   public static Node curNode;
-  public static Node prevNode;
   public static int Heading;
+  public static int enterHeading;
+  public static int exitHeading;
+  public static boolean backtrack = false;
   public static ArrayList<Node> nodeList;
+  public static Stack<Node> nodeStack;
 
+  // Absolute bearings
   static int NORTH = 0;
   static int EAST = 1;
   static int SOUTH = 2;
@@ -29,6 +37,9 @@ public class RobotMaze {
 
   // Obstacle Sensor constants
   static final int obsRange = 10;
+
+  // Debug variables
+  static int loopCount = 0;
 
   public static void main(String[] args){
     init();
@@ -45,57 +56,86 @@ public class RobotMaze {
       - Check if an already searched node (Need to find way of detecting this)
       - Search left and right for exits, if not already searched
       */
-      curNode.setCoords(getRobotX(),getRobotY());
-      Node temp = getExistingNode(curNode);
-      if (temp == null) {
-        nodeList.add(curNode);
-        searchNode(curNode);
-      } else {
-        curNode = temp;
+      // If not backtracking, update new node
+      if (!backtrack){
+        curNode.setCoords(getRobotX(),getRobotY());
+        // Check if node already exists, backtrack if so
+        Node temp = getExistingNode(curNode);
+        if (temp == null) {
+          searchNode(curNode);
+          nodeList.add(curNode);
+        } else {
+          // Stop exploring if no more nodes to backtrack to
+          if (!startBacktrack())
+            break;
+          turnBack();
+          travelEdge();
+          continue;
+        }
+        curNode.enterHeading = Heading; // Heading made when entering node
       }
-      System.out.println(nodeList);
+      // Dump debug data to file
+      appendDebug("nodelist.txt", "Node List "+loopCount+": "+nodeList.toString()+"\n\n");
+      appendDebug("nodestack.txt", "Node Stack "+loopCount+": "+nodeStack.toString()+"\n\n");
+      loopCount++;
       /*
-        Select an unvisited exit to explore
+        Check if node is a goal node, set it as goal state if true
+      */
+      if (isGoal(curNode))
+        Goal = curNode;
+      /*
+        Select first unvisited exit (Starting from Forward clockwise) to explore
       */
       boolean foundNewNode = false;
-
       for (int i=0; i < 4; i++){
         int newHeading = (Heading + i)%4;
-        // System.out.println(i);
         // Look at each direction and find all unvisited exits (that are not obstacles)
         if (curNode.exits[newHeading] != null && !curNode.exits[newHeading].isVisited()){
           switch (i) {
             case 1: // Right
-              turnRight();
+              junctionTurnRight();
               System.out.println("Turn Right");
               break;
-            case 2: // Back
-              pilot.rotate(-180.0f);
-              System.out.println("Turn Back");
-              break;
             case 3: // Left
-              turnLeft();
+              junctionTurnLeft();
               System.out.println("Turn Left");
               break;
             case 0: // Forwards
               System.out.println("Go Forwards");
           }
-          Heading = newHeading;
+          curNode.exitHeading = Heading = newHeading;
           foundNewNode = true;
-          prevNode = curNode;
+          nodeStack.push(curNode);
           curNode = (Node) curNode.exits[newHeading];
         }
       }
       /*
-        If unvisited exit found, travel down it, otherwise backtrack
+        If unvisited exit found, travel down it, otherwise turn back to previous node
       */
       if (foundNewNode){
+        backtrack = false;
         pilot.travel(3.0f);
-        curNode.exits[relToAbsTurn(2)] = prevNode;
+        curNode.exits[relToAbsTurn(2)] = nodeStack.peek();
+        travelEdge();
+      } else {
+        // Face towards exit we've come from
+        int turns = 0;
+        while ((Heading + turns)%4 != (curNode.enterHeading+2)%4) turns++;
+        if (turns > 0){
+          junctionTurnRight();
+          turns--;
+          pilot.rotate(turns*-90.0f);
+          Heading = (curNode.enterHeading+2)%4;
+        }
+        if (!startBacktrack())  // Stop exploring if no more nodes to backtrack to
+          break;
         travelEdge();
       }
-
     }
+    /*
+      Using node map, find shortest path
+    */
+
   }
 
   public static void init(){
@@ -106,6 +146,52 @@ public class RobotMaze {
     sonar = new UltrasonicSensor(SensorPort.S3);
     pilot.setTravelSpeed(10);
     nodeList = new ArrayList<Node>();
+  }
+
+  // Write (Overwrite) debug info to file
+  public static void writeDebug(String filename, String msg){
+    BufferedWriter debugWriter = null;
+    try {
+      debugWriter = new BufferedWriter(new FileOutputStream(new File(filename)));
+      for (int i=0; i < msg.length(); i++){
+        if (msg.charAt(i) == '\n')
+          debugWriter.newLine();
+        else
+          debugWriter.write(msg.charAt(i));
+      }
+      debugWriter.flush();
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally { // Close file when done
+      try {
+        debugWriter.close();
+      } catch (IOException f) {
+        f.printStackTrace();
+      }
+    }
+  }
+
+  // Append debug info to file
+  public static void appendDebug(String filename, String msg){
+    BufferedWriter debugWriter = null;
+    try {
+      debugWriter = new BufferedWriter(new FileOutputStream(new File(filename), true));
+      for (int i=0; i < msg.length(); i++){
+        if (msg.charAt(i) == '\n')
+          debugWriter.newLine();
+        else
+          debugWriter.write(msg.charAt(i));
+      }
+      debugWriter.flush();
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally { // Close file when done
+      try {
+        debugWriter.close();
+      } catch (IOException f) {
+        f.printStackTrace();
+      }
+    }
   }
 
   public static boolean lightOnBlack(LightSensor sensor){
@@ -128,14 +214,14 @@ public class RobotMaze {
   }
 
   // Turns robot left on a junction, updates heading
-  public static void turnLeft(){
+  public static void junctionTurnLeft(){
     pilot.travel(8.0f);
     pilot.rotate(90.0f);
     Heading = relToAbsTurn(-1);
   }
 
   // Turns robot right on a junction, updates heading
-  public static void turnRight(){
+  public static void junctionTurnRight(){
     pilot.travel(8.0f);
     pilot.rotate(-90.0f);
     Heading = relToAbsTurn(1);
@@ -198,10 +284,9 @@ public class RobotMaze {
       rightOnBlack = lightOnBlack(rLight);
       // When an obstacle encountered, turn back to prevNode
       if (hasObstacle()){
-        Exit obsNode = (Exit) curNode;
-        curNode = prevNode;
-        obsNode = new Obstacle();
+        startBacktrack();
         turnBack();
+        curNode.exits[exitHeading] = new Obstacle();  // Change exit to obstacle
       }
       if (!leftOnBlack && !rightOnBlack){  // Go forwards
         pilot.forward();
@@ -213,7 +298,7 @@ public class RobotMaze {
         // pilot.rotate(-5);
       } else{  // On junction (Sometimes can be a left/right only turn)
         // Check if only left/right turn
-        Node testNode = new Node(); // Temp node for testing junction
+        Node testNode = new Node(); // Temp node for testing junction, deleted after use
         int exitCount = 0;
         boolean isLeftTurn = false;
         searchNode(testNode);
@@ -231,9 +316,9 @@ public class RobotMaze {
         // Left/right only turn if only one exit found
         if (exitCount == 1){
           if (isLeftTurn)
-            turnLeft();
+            junctionTurnLeft();
           else
-            turnRight();
+            junctionTurnRight();
           continue;
         // Otherwise, it is a junction
         } else {
@@ -276,9 +361,9 @@ public class RobotMaze {
         // }
         // if (exitCount == 1){
         //   if (isLeftTurn)
-        //     turnLeft();
+        //     junctionTurnLeft();
         //   else
-        //     turnRight();
+        //     junctionTurnRight();
         //   continue;
         // } else {
           pilot.stop();
@@ -286,6 +371,16 @@ public class RobotMaze {
         // }
       }
     }
+  }
+
+  // Start backtrack mode, return true if able to backtrack (If nodeStack has nodes)
+  public static boolean startBacktrack(){
+    backtrack = true;
+    if (!nodeStack.empty())
+      curNode = nodeStack.pop();
+    else
+      return false;
+    return true;
   }
 
   /* Gives an absolute heading from relative turns (positive = right, negative = left) */

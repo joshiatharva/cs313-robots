@@ -5,6 +5,9 @@ public class Node extends exits.Exit {
   private int y;
   private boolean visited;
   public Exit exits[];
+  public int enterHeading;
+  public int exitHeading;
+
   private final int error = 5;
 
   public Node () {
@@ -27,6 +30,10 @@ public class Node extends exits.Exit {
 
   public boolean isVisited(){
     return this.visited;
+  }
+
+  public int distanceFrom(Node M){
+    return Math.abs((M.getX()-x)) + Math.abs((M.getY()-y));
   }
 
   public boolean equals(Node M){
