@@ -4,6 +4,9 @@ public class Node extends exits.Exit {
   private int x;
   private int y;
   private boolean visited;
+  public int fvalue;
+  public int gvalue;
+  public Node parent;
   public Exit exits[];
   public int enterHeading;
   public int exitHeading;
@@ -32,6 +35,10 @@ public class Node extends exits.Exit {
     return this.visited;
   }
 
+  public void visit(){
+    this.visited = true;
+  }
+
   public int distanceFrom(Node M){
     return Math.abs((M.getX()-x)) + Math.abs((M.getY()-y));
   }
@@ -46,4 +53,5 @@ public class Node extends exits.Exit {
   public String toString() {
     return "("+ this.x + "," + this.y + ")";
   }
+
 }

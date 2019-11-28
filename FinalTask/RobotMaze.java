@@ -24,10 +24,10 @@ public class RobotMaze {
   public static Stack<Node> nodeStack;
 
   // Absolute bearings
-  static int NORTH = 0;
-  static int EAST = 1;
-  static int SOUTH = 2;
-  static int WEST = 3;
+  static final int NORTH = 0;
+  static final int EAST = 1;
+  static final int SOUTH = 2;
+  static final int WEST = 3;
 
   // Light Sensor data and variables
   static final int white = 60;
@@ -40,6 +40,8 @@ public class RobotMaze {
 
   // Debug variables
   static int loopCount = 0;
+  static String nodelistfile = "nodelist.txt";
+  static String nodestackfile = "nodestack.txt";
 
   public static void main(String[] args){
     init();
@@ -49,7 +51,7 @@ public class RobotMaze {
     // */
     Start = new Node();
     curNode = Start;
-    Heading = NORTH;
+    Heading = EAST;
     while (!Button.ESCAPE.isDown()){
       /*
       When on junction
@@ -73,25 +75,32 @@ public class RobotMaze {
           continue;
         }
         curNode.enterHeading = Heading; // Heading made when entering node
+        curNode.visit();  // Current node has been visited
       }
       // Dump debug data to file
-      appendDebug("nodelist.txt", "Node List "+loopCount+": "+nodeList.toString()+"\n\n");
-      appendDebug("nodestack.txt", "Node Stack "+loopCount+": "+nodeStack.toString()+"\n\n");
+      appendDebug(nodelistfile, "Node List "+loopCount+": "+nodeList.toString()+"\n\n");
+      appendDebug(nodestackfile, "Node Stack "+loopCount+": "+nodeStack.toString()+"\n\n");
       loopCount++;
       /*
         Check if node is a goal node, set it as goal state if true
       */
-      if (isGoal(curNode))
+      if (isGoal(curNode)){
         Goal = curNode;
+        System.out.println("Goal Found");
+      }
       /*
         Select first unvisited exit (Starting from Forward clockwise) to explore
       */
       boolean foundNewNode = false;
       for (int i=0; i < 4; i++){
         int newHeading = (Heading + i)%4;
-        // Look at each direction and find all unvisited exits (that are not obstacles)
-        if (curNode.exits[newHeading] != null && !curNode.exits[newHeading].isVisited()){
+        // Look at each direction and find all unvisited exits (that are not obstacles), except backwards
+        if (i != 2 && curNode.exits[newHeading] != null && !curNode.exits[newHeading].isVisited()){
+          System.out.println(i);
           switch (i) {
+            case 0: // Forwards
+              System.out.println("Go Forwards");
+              break;
             case 1: // Right
               junctionTurnRight();
               System.out.println("Turn Right");
@@ -100,8 +109,6 @@ public class RobotMaze {
               junctionTurnLeft();
               System.out.println("Turn Left");
               break;
-            case 0: // Forwards
-              System.out.println("Go Forwards");
           }
           curNode.exitHeading = Heading = newHeading;
           foundNewNode = true;
@@ -135,7 +142,65 @@ public class RobotMaze {
     /*
       Using node map, find shortest path
     */
+    ArrayList<Node> shortestPath = findShortestPath();
+    if (shortestPath == null) {
+      writeDebug("shortestpath.txt", "No Shortest Path Found");
+      System.out.println("No Short Path");
+    } else {
+      writeDebug("shortestpath.txt", shortestPath.toString());
+      System.out.println("Short Path Found");
+    }
+  }
 
+  public static ArrayList<Node> findShortestPath(){
+    ArrayList<Node> queue = new ArrayList<Node>();
+    Start.gvalue = 0;
+    Start.fvalue = Start.gvalue + Start.distanceFrom(Goal);
+    queue.add(Start);
+    curNode = null; // Start node has null parent
+
+    while (!queue.isEmpty()){
+      // Find node in queue with min f value
+      Node popNode = queue.get(0);
+      for (int i=0; i<queue.size(); i++) {
+        if (queue.get(i).fvalue < popNode.fvalue)
+          popNode = queue.get(i);
+      }
+      queue.remove((Object) popNode);
+
+      popNode.parent = curNode;
+      curNode = popNode;
+      if (curNode.equals(Goal))
+        break;
+      for (Exit e : curNode.exits){
+        Node m;
+        try {
+          m = (Node) e;
+        } catch (ClassCastException ex) {
+          continue;
+        }
+        m.gvalue = curNode.gvalue + curNode.distanceFrom(m);
+        m.fvalue = m.gvalue + m.distanceFrom(Goal);
+        queue.add(m);
+      }
+    }
+    // Return null if goal is not found
+    if (!curNode.equals(Goal)){
+      return null;
+    }
+
+    ArrayList<Node> path = new ArrayList<Node>();
+    do{
+      path.add(curNode);
+      curNode = curNode.parent;
+    } while (curNode != null);  // Until start reached
+    // Reverse path list so it starts with Start and ends with Goal
+    ArrayList<Node> temp = new ArrayList<Node>();
+    for (int i=path.size()-1; i>=0; i--){
+      temp.add(path.get(i));
+    }
+    path = temp;
+    return path;
   }
 
   public static void init(){
@@ -146,6 +211,9 @@ public class RobotMaze {
     sonar = new UltrasonicSensor(SensorPort.S3);
     pilot.setTravelSpeed(10);
     nodeList = new ArrayList<Node>();
+    nodeStack = new Stack<Node>();
+    writeDebug(nodelistfile, "");
+    writeDebug(nodestackfile, "");
   }
 
   // Write (Overwrite) debug info to file
@@ -279,7 +347,15 @@ public class RobotMaze {
 
   /* Travel down edge until a junction is found */
   public static void travelEdge(){
+    int startAngle = getRobotAngle();
     while (true) {
+      // System.out.println(getRobotAngle() - startAngle);
+      // If turn is more than 30 degrees, must be a bend turn
+      if (Math.abs(getRobotAngle() - startAngle) > 30) {
+        pilot.rotate(startAngle - getRobotAngle());
+        pilot.stop();
+        break;
+      }
       leftOnBlack = lightOnBlack(lLight);
       rightOnBlack = lightOnBlack(rLight);
       // When an obstacle encountered, turn back to prevNode
@@ -296,35 +372,9 @@ public class RobotMaze {
       } else if (!leftOnBlack && rightOnBlack) { // Turn right
         pilot.steer(-175);
         // pilot.rotate(-5);
-      } else{  // On junction (Sometimes can be a left/right only turn)
-        // Check if only left/right turn
-        Node testNode = new Node(); // Temp node for testing junction, deleted after use
-        int exitCount = 0;
-        boolean isLeftTurn = false;
-        searchNode(testNode);
-        // Counts the number of exits from test node
-        for (int i=0; i<testNode.exits.length; i++){
-          if (testNode.exits[i] != null){
-            exitCount++;
-            // Turn set to most recent exit detected
-            if (i == (Heading - 1 < 0?3:Heading-1))
-              isLeftTurn = true;
-            else
-              isLeftTurn = false;
-          }
-        }
-        // Left/right only turn if only one exit found
-        if (exitCount == 1){
-          if (isLeftTurn)
-            junctionTurnLeft();
-          else
-            junctionTurnRight();
-          continue;
-        // Otherwise, it is a junction
-        } else {
+      } else{  // On junction
           pilot.stop();
           break;
-        }
       }
     }
   }
