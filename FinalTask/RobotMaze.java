@@ -270,10 +270,22 @@ public class RobotMaze {
   }
 
   public static int getRobotX(){
+    switch (Heading){
+      case EAST:
+        return (int) nav.getPoseProvider().getPose().getX()+8;
+      case WEST:
+        return (int) nav.getPoseProvider().getPose().getX()-8;
+    }
     return (int) nav.getPoseProvider().getPose().getX();
   }
 
   public static int getRobotY(){
+    switch (Heading){
+      case NORTH:
+        return (int) nav.getPoseProvider().getPose().getY()+8;
+      case SOUTH:
+        return (int) nav.getPoseProvider().getPose().getY()-8;
+    }
     return (int) nav.getPoseProvider().getPose().getY();
   }
 
@@ -284,22 +296,29 @@ public class RobotMaze {
   // Turns robot left on a junction, updates heading
   public static void junctionTurnLeft(){
     pilot.travel(8.0f);
-    pilot.rotate(90.0f);
+    while (!lightOnBlack(lLight))
+      pilot.rotate(5.0f);
+    while (lightOnBlack(lLight))
+      pilot.rotate(5.0f);
     Heading = relToAbsTurn(-1);
   }
 
   // Turns robot right on a junction, updates heading
   public static void junctionTurnRight(){
     pilot.travel(8.0f);
-    pilot.rotate(-90.0f);
+    while (!lightOnBlack(rLight))
+      pilot.rotate(-5.0f);
+    while (lightOnBlack(rLight))
+      pilot.rotate(-5.0f);
     Heading = relToAbsTurn(1);
   }
 
   // Turns robot back from a junction, or from a completely visited node, updates heading
   public static void turnBack(){
-    pilot.travel(-5.0f);
+    // pilot.travel(-5.0f);
     pilot.rotate(180);
     Heading = relToAbsTurn(2);
+    System.out.print("Turned Back");
   }
 
   public static void searchNode(Node N){
@@ -349,30 +368,49 @@ public class RobotMaze {
   public static void travelEdge(){
     int startAngle = getRobotAngle();
     while (true) {
+      leftOnBlack = lightOnBlack(lLight);
+      rightOnBlack = lightOnBlack(rLight);
       // System.out.println(getRobotAngle() - startAngle);
       // If turn is more than 30 degrees, must be a bend turn
-      if (Math.abs(getRobotAngle() - startAngle) > 30) {
+      if (Math.abs(getRobotAngle() - startAngle) > 45) {
+        pilot.steer(0);
         pilot.rotate(startAngle - getRobotAngle());
+        while (!leftOnBlack && !rightOnBlack){
+          pilot.travel(-0.5);
+          leftOnBlack = lightOnBlack(lLight);
+          rightOnBlack = lightOnBlack(rLight);
+        }
         pilot.stop();
         break;
       }
-      leftOnBlack = lightOnBlack(lLight);
-      rightOnBlack = lightOnBlack(rLight);
       // When an obstacle encountered, turn back to prevNode
       if (hasObstacle()){
         startBacktrack();
-        turnBack();
         curNode.exits[exitHeading] = new Obstacle();  // Change exit to obstacle
+        System.out.println(exitHeading);
+        System.out.println(curNode.exits[exitHeading].isVisited());
+        // turnBack();
+        while (!leftOnBlack && !rightOnBlack){
+          pilot.travel(-1);
+          leftOnBlack = lightOnBlack(lLight);
+          rightOnBlack = lightOnBlack(rLight);
+        }
+        // System.out.println(curNode);
+        // System.out.println(getRobotX() + ", " + getRobotY());
+        startAngle = getRobotAngle();
+        break;
       }
       if (!leftOnBlack && !rightOnBlack){  // Go forwards
         pilot.forward();
       } else if (leftOnBlack && !rightOnBlack){ // Turn left
-        pilot.steer(175); // Steer smoothly turns the robot
-        // pilot.rotate(5);
+        // pilot.steer(175); // Steer smoothly turns the robot
+        pilot.rotate(5);
       } else if (!leftOnBlack && rightOnBlack) { // Turn right
-        pilot.steer(-175);
-        // pilot.rotate(-5);
+        // pilot.steer(-175);
+        pilot.rotate(-5);
       } else{  // On junction
+          pilot.steer(0);
+	        pilot.rotate(startAngle - getRobotAngle());
           pilot.stop();
           break;
       }
